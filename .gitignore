@@ -1,0 +1,33 @@
+# Binaries & build artifacts
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/server
+
+# Test & coverage artifacts
+*.out
+coverage.html
+coverage.txt
+
+# Dependency directories
+vendor/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Supabase CLI local cache & temp files
+supabase/.temp/
+supabase/.branches/
+
+# IDE & OS files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
