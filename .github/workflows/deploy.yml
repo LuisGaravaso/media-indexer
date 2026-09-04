@@ -1,0 +1,92 @@
+name: Deploy to Cloud Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target Environment'
+        required: true
+        type: choice
+        options:
+          - sandbox
+          - production
+        default: sandbox
+
+concurrency:
+  group: deploy-${{ inputs.environment }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  validate:
+    name: Validate Target Environment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Block Production deploys from non-main branches
+        if: ${{ inputs.environment == 'production' && github.ref != 'refs/heads/main' }}
+        run: |
+          echo "::error::Production deployments are only permitted from the 'main' branch."
+          exit 1
+
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker authentication for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.ARTIFACT_REGISTRY_REPO }}/media-indexer:${{ github.sha }}
+            ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.ARTIFACT_REGISTRY_REPO }}/media-indexer:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy to Google Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: media-indexer
+          image: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ secrets.ARTIFACT_REGISTRY_REPO }}/media-indexer:${{ github.sha }}
+          region: ${{ secrets.GCP_REGION }}
+          env_vars: |
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+            SUPABASE_JWT_SECRET=${{ secrets.SUPABASE_JWT_SECRET }}
+            GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
+            PUBSUB_SUBSCRIPTION=media-indexer-sub
+            STORAGE_BUCKET=${{ inputs.environment == 'production' && 'reeler-media-prod' || 'reeler-media-sandbox' }}
+            GEMINI_MODEL=gemini-2.0-flash
+            EMBEDDING_MODEL=text-embedding-004
+          flags: |
+            --service-account=media-api-sa@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+            --port=8080
+            --min-instances=0
+            --max-instances=2
+            --concurrency=80
