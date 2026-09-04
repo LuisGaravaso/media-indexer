@@ -63,6 +63,48 @@ jobs:
           path: coverage.out
           retention-days: 14
 
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgrespassword
+          POSTGRES_DB: media_indexer_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache: true
+
+      - name: Run database migrations
+        run: |
+          sudo apt-get update && sudo apt-get install -y postgresql-client
+          for file in $(ls migrations/*.sql | sort); do
+            echo "Applying $file..."
+            PGPASSWORD=postgrespassword psql -h localhost -U postgres -d media_indexer_dev -f "$file"
+          done
+
+      - name: Run integration tests
+        env:
+          DATABASE_URL: postgres://postgres:postgrespassword@localhost:5432/media_indexer_dev?sslmode=disable
+        run: |
+          go test -v -race -tags=integration ./tests/integration/...
+
   build:
     name: Docker Build
     runs-on: ubuntu-latest
