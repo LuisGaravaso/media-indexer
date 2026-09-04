@@ -1,0 +1,22 @@
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    container_name: media-indexer-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: media_indexer_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - media_indexer_db_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d media_indexer_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  media_indexer_db_data:

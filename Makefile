@@ -55,6 +55,23 @@ docker-run:
 clean:
 	rm -rf bin/ coverage.out
 
+## db-up: Start local PostgreSQL (with pgvector) database container
+db-up:
+	docker compose up -d db
+
+## db-down: Stop local PostgreSQL container
+db-down:
+	docker compose down
+
+## db-reset: Reset local database and re-apply all migrations from scratch
+db-reset:
+	docker compose down -v
+	docker compose up -d db
+
+## db-logs: View logs from local database container
+db-logs:
+	docker compose logs -f db
+
 ## hooks-install: Configure git to use project pre-commit hooks
 hooks-install:
 	git config core.hooksPath .githooks
