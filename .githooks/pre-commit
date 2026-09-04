@@ -1,0 +1,20 @@
+#!/bin/bash
+set -e
+
+echo "==> [pre-commit] Running code quality checks..."
+
+# 1. Run go vet
+echo "--> Running go vet..."
+go vet ./...
+
+# 2. Run tests with race detector
+echo "--> Running unit tests with race detection..."
+go test -v -race ./...
+
+# 3. Run linter
+echo "--> Running linter..."
+if which golangci-lint > /dev/null 2>&1; then
+    golangci-lint run ./...
+fi
+
+echo "==> [pre-commit] All checks passed successfully!"
