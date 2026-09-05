@@ -109,8 +109,7 @@ func (s *SemanticSearchService) Search(ctx context.Context, userID uuid.UUID, re
 
 	resultsMap := make(map[uuid.UUID]*SemanticSearchResult)
 	for _, m := range mediaMatches {
-		rawSim := m.Similarity
-		normSim := normalizeScore(rawSim)
+		sim := roundScore(m.Similarity)
 		resultsMap[m.MediaID] = &SemanticSearchResult{
 			MediaID:          m.MediaID,
 			UserID:           m.UserID,
@@ -118,8 +117,8 @@ func (s *SemanticSearchService) Search(ctx context.Context, userID uuid.UUID, re
 			Tags:             m.Tags,
 			DetectedLocation: m.DetectedLocation,
 			DetectedSeason:   m.DetectedSeason,
-			Similarity:       normSim,
-			RawSimilarity:    rawSim,
+			Similarity:       sim,
+			RawSimilarity:    sim,
 		}
 	}
 
@@ -131,15 +130,13 @@ func (s *SemanticSearchService) Search(ctx context.Context, userID uuid.UUID, re
 		}
 
 		for _, sm := range sceneMatches {
-			rawSceneSim := sm.Similarity
-			normSceneSim := normalizeScore(rawSceneSim)
+			sceneSim := roundScore(sm.Similarity)
 
 			res, exists := resultsMap[sm.MediaID]
 			if !exists {
 				// Fetch parent media summary if not already in result map
 				parentSem, err := s.repo.GetSemanticsByMediaID(ctx, userID, sm.MediaID)
 				if err == nil && parentSem != nil {
-					rawParentSim := sm.Similarity
 					res = &SemanticSearchResult{
 						MediaID:          parentSem.MediaID,
 						UserID:           parentSem.UserID,
@@ -147,17 +144,17 @@ func (s *SemanticSearchService) Search(ctx context.Context, userID uuid.UUID, re
 						Tags:             parentSem.Tags,
 						DetectedLocation: parentSem.DetectedLocation,
 						DetectedSeason:   parentSem.DetectedSeason,
-						Similarity:       normSceneSim,
-						RawSimilarity:    rawParentSim,
+						Similarity:       sceneSim,
+						RawSimilarity:    sceneSim,
 					}
 					resultsMap[sm.MediaID] = res
 				}
 			}
 
 			if res != nil {
-				if normSceneSim > res.Similarity {
-					res.Similarity = normSceneSim
-					res.RawSimilarity = rawSceneSim
+				if sceneSim > res.Similarity {
+					res.Similarity = sceneSim
+					res.RawSimilarity = sceneSim
 				}
 
 				if sm.SceneIndex != nil && sm.StartTimeSeconds != nil && sm.EndTimeSeconds != nil && sm.SceneDescription != nil {
@@ -166,8 +163,8 @@ func (s *SemanticSearchService) Search(ctx context.Context, userID uuid.UUID, re
 						StartTimeSeconds: *sm.StartTimeSeconds,
 						EndTimeSeconds:   *sm.EndTimeSeconds,
 						Description:      *sm.SceneDescription,
-						Similarity:       normSceneSim,
-						RawSimilarity:    rawSceneSim,
+						Similarity:       sceneSim,
+						RawSimilarity:    sceneSim,
 					})
 				}
 			}
@@ -179,11 +176,8 @@ func (s *SemanticSearchService) Search(ctx context.Context, userID uuid.UUID, re
 		finalResults = append(finalResults, *res)
 	}
 
-	// Rank by descending similarity (normalized first, then raw similarity)
+	// Rank by descending cosine similarity
 	sort.Slice(finalResults, func(i, j int) bool {
-		if finalResults[i].Similarity == finalResults[j].Similarity {
-			return finalResults[i].RawSimilarity > finalResults[j].RawSimilarity
-		}
 		return finalResults[i].Similarity > finalResults[j].Similarity
 	})
 
@@ -194,21 +188,13 @@ func (s *SemanticSearchService) Search(ctx context.Context, userID uuid.UUID, re
 	return finalResults, nil
 }
 
-// normalizeScore calibrates high-dimensional embedding cosine similarity (typically 0.55-0.82 for gemini-embedding-001)
-// onto an intuitive 0.0 - 1.0 (0% - 100%) scale, filtering out unrelated token noise.
-func normalizeScore(raw float64) float64 {
-	// Baseline random similarity floor for unrelated text: ~0.55
-	// Target high-confidence semantic ceiling: ~0.82
-	const floor = 0.55
-	const ceiling = 0.82
-
-	if raw <= floor {
+// roundScore rounds raw cosine similarity (0.0000 - 1.0000) to 4 decimal places.
+func roundScore(raw float64) float64 {
+	if raw < 0.0 {
 		return 0.0
 	}
-	if raw >= ceiling {
+	if raw > 1.0 {
 		return 1.0
 	}
-
-	scaled := (raw - floor) / (ceiling - floor)
-	return float64(int(scaled*10000)) / 10000.0 // Round to 4 decimal places
+	return float64(int(raw*10000+0.5)) / 10000.0
 }
