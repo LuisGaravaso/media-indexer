@@ -48,20 +48,20 @@ func (g *GeminiAnalyzer) Close() error {
 
 // BuildImagePrompt returns the prompt specifically designed for single-image semantic extraction.
 func BuildImagePrompt() string {
-	return `You are an expert visual semantic analyzer. Analyze the provided image and return a strictly valid JSON object matching this schema:
+	return `You are an expert visual semantic analyzer. Thoroughly examine the visual content of the provided image, including subjects, background environment, geography, architecture, landscape, and cultural or atmospheric markers. Return a strictly valid JSON object matching this schema:
 {
-  "summary": "Concise 1-3 sentence summary of what is seen in the image, the subjects, context, and aesthetic mood.",
-  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"],
-  "detected_location": "Geographic or contextual place if identifiable (e.g. 'Beach, Hawaii', 'Office', 'Paris, France', or 'Unknown')",
-  "detected_season": "Season if recognizable ('Spring', 'Summer', 'Autumn', 'Winter', 'Year-round', or 'Unknown')",
-  "visual_objects": ["person", "car", "dog", "sunglasses"],
+  "summary": "Detailed, informative 2-4 sentence summary describing the primary subjects, background scenery, environment/landscape type, geographic features, lighting, activities, and overall context.",
+  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8", "tag9", "tag10"],
+  "detected_location": "Specific geographic place, city, region, country, or natural landmark/terrain if recognizable (e.g. specific desert, mountain range, national park, city square, monument, or descriptive environment if exact location is unknown).",
+  "detected_season": "Season or climate context if recognizable ('Spring', 'Summer', 'Autumn', 'Winter', 'Dry Season', 'Wet Season', 'Year-round', or 'Unknown')",
+  "visual_objects": ["person", "clothing items", "natural features", "structures", "prominent objects"],
   "scenes": []
 }
 
 Rules:
 - Output ONLY the JSON object. Do not include markdown code block formatting or backticks.
 - For images, the "scenes" array MUST be empty.
-- Provide descriptive, searchable tags (at least 5-10 tags).`
+- Provide comprehensive, searchable tags (at least 10-15 descriptive tags) covering subjects, activities, landscape types, environment, colors, mood, and any identifiable regional characteristics.`
 }
 
 // BuildVideoPrompt returns the prompt for multimodal video narrative & scene cut extraction.

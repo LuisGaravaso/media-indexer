@@ -58,8 +58,25 @@ func (p *MediaIndexingPipeline) ProcessMediaConfirmed(ctx context.Context, event
 		return fmt.Errorf("analysis failed for media %s: %w", event.MediaID, err)
 	}
 
-	// Step 2: Global semantic embedding (summary + tags)
-	combinedGlobalText := fmt.Sprintf("%s. Tags: %s", analysis.Summary, strings.Join(analysis.Tags, ", "))
+	// Step 2: Global semantic embedding (summary + location + season + objects + tags)
+	var textParts []string
+	if analysis.Summary != "" {
+		textParts = append(textParts, analysis.Summary)
+	}
+	if analysis.DetectedLocation != "" && !strings.EqualFold(analysis.DetectedLocation, "unknown") {
+		textParts = append(textParts, "Location: "+analysis.DetectedLocation)
+	}
+	if analysis.DetectedSeason != "" && !strings.EqualFold(analysis.DetectedSeason, "unknown") {
+		textParts = append(textParts, "Season/Climate: "+analysis.DetectedSeason)
+	}
+	if len(analysis.VisualObjects) > 0 {
+		textParts = append(textParts, "Objects: "+strings.Join(analysis.VisualObjects, ", "))
+	}
+	if len(analysis.Tags) > 0 {
+		textParts = append(textParts, "Tags: "+strings.Join(analysis.Tags, ", "))
+	}
+	combinedGlobalText := strings.Join(textParts, ". ")
+
 	globalEmbeddingSlice, err := p.embedder.EmbedText(ctx, combinedGlobalText)
 	if err != nil {
 		return fmt.Errorf("failed generating global embedding for media %s: %w", event.MediaID, err)
