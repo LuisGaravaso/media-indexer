@@ -58,7 +58,7 @@ func Load() *Config {
 	storageBucket := getEnv("STORAGE_BUCKET", "reeler-media-sandbox")
 
 	geminiAPIKey := getEnv("GEMINI_API_KEY", "")
-	geminiModel := getEnv("GEMINI_MODEL", "gemini-2.5-flash")
+	geminiModel := getEnv("GEMINI_MODEL", "gemini-3.6-flash")
 	embeddingModel := getEnv("EMBEDDING_MODEL", "text-embedding-004")
 	workerConcurrency := getEnvAsInt("WORKER_CONCURRENCY", 5)
 
