@@ -29,6 +29,7 @@ func TestMigrationFiles_ExistAndValid(t *testing.T) {
 		"000_bootstrap_auth_mock.sql",
 		"001_create_media_semantics.sql",
 		"002_create_media_scenes.sql",
+		"003_add_scene_index_to_media_scenes.sql",
 	}
 
 	assert.Equal(t, expectedFiles, sqlFiles, "should have exactly the expected migration files in sequence")

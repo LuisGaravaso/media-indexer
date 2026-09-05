@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS public.media_scenes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     media_id UUID NOT NULL REFERENCES public.media(id) ON DELETE CASCADE,
     user_id UUID NOT NULL,
+    scene_index INT NOT NULL DEFAULT 0,
     start_time_seconds NUMERIC(8,2) NOT NULL,
     end_time_seconds NUMERIC(8,2) NOT NULL,
     description TEXT NOT NULL,
