@@ -7,6 +7,7 @@ import (
 	aiplatform "cloud.google.com/go/aiplatform/apiv1"
 	aiplatformpb "cloud.google.com/go/aiplatform/apiv1/aiplatformpb"
 	"google.golang.org/api/option"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // Embedder defines the contract for generating text vector embeddings.
@@ -61,37 +62,59 @@ func (v *VertexEmbedder) Close() error {
 	return nil
 }
 
-// EmbedText generates a vector embedding for a single string.
+// EmbedText generates a vector embedding for a single string using Vertex AI Predict API.
 func (v *VertexEmbedder) EmbedText(ctx context.Context, text string) ([]float32, error) {
 	if text == "" {
 		return nil, fmt.Errorf("text cannot be empty")
 	}
 
-	model := v.modelPath
-	req := &aiplatformpb.EmbedContentRequest{
-		Model: &model,
-		Content: &aiplatformpb.Content{
-			Role: "user",
-			Parts: []*aiplatformpb.Part{
-				{
-					Data: &aiplatformpb.Part_Text{
-						Text: text,
-					},
-				},
-			},
-		},
-	}
-
-	res, err := v.client.EmbedContent(ctx, req)
+	instance, err := structpb.NewStruct(map[string]interface{}{
+		"content": text,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("vertex embed content failed: %w", err)
+		return nil, fmt.Errorf("failed to create predict instance: %w", err)
 	}
 
-	if res == nil || res.Embedding == nil || len(res.Embedding.Values) == 0 {
-		return nil, fmt.Errorf("empty embedding returned from vertex ai")
+	req := &aiplatformpb.PredictRequest{
+		Endpoint:  v.modelPath,
+		Instances: []*structpb.Value{structpb.NewStructValue(instance)},
 	}
 
-	return res.Embedding.Values, nil
+	res, err := v.client.Predict(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("vertex predict embeddings failed: %w", err)
+	}
+
+	if res == nil || len(res.Predictions) == 0 {
+		return nil, fmt.Errorf("empty predictions returned from vertex ai")
+	}
+
+	predStruct := res.Predictions[0].GetStructValue()
+	if predStruct == nil {
+		return nil, fmt.Errorf("invalid prediction structure returned from vertex ai")
+	}
+
+	embeddingsField := predStruct.Fields["embeddings"]
+	if embeddingsField == nil || embeddingsField.GetStructValue() == nil {
+		return nil, fmt.Errorf("embeddings field missing in vertex response")
+	}
+
+	valuesList := embeddingsField.GetStructValue().Fields["values"]
+	if valuesList == nil || valuesList.GetListValue() == nil {
+		return nil, fmt.Errorf("embedding values list missing in vertex response")
+	}
+
+	rawValues := valuesList.GetListValue().GetValues()
+	if len(rawValues) == 0 {
+		return nil, fmt.Errorf("empty embedding values returned from vertex ai")
+	}
+
+	embedding := make([]float32, len(rawValues))
+	for i, v := range rawValues {
+		embedding[i] = float32(v.GetNumberValue())
+	}
+
+	return embedding, nil
 }
 
 // EmbedBatch generates embeddings for a slice of strings sequentially or concurrently.
