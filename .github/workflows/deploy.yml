@@ -95,7 +95,7 @@ jobs:
             PUBSUB_SUBSCRIPTION=media-indexer-sub
             STORAGE_BUCKET=${{ inputs.environment == 'production' && 'reeler-media-prod' || 'reeler-media-sandbox' }}
             GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
-            GEMINI_MODEL=gemini-3.6-flash
+            GEMINI_MODEL=gemini-3.5-flash-lite
             EMBEDDING_MODEL=text-embedding-004
           flags: |
             --service-account=media-api-sa@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com
