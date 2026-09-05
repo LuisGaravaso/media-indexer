@@ -28,7 +28,7 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, "reeler-sandbox", cfg.GCPProjectID)
 	assert.Equal(t, "media-indexer-sub", cfg.PubSubSubscription)
 	assert.Equal(t, "reeler-media-sandbox", cfg.StorageBucket)
-	assert.Equal(t, "gemini-2.0-flash", cfg.GeminiModel)
+	assert.Equal(t, "gemini-2.5-flash", cfg.GeminiModel)
 	assert.Equal(t, "text-embedding-004", cfg.EmbeddingModel)
 	assert.Equal(t, 5, cfg.WorkerConcurrency)
 	assert.Equal(t, int32(25), cfg.DBMaxConns)
