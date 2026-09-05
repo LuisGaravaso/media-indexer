@@ -24,7 +24,7 @@ func NewAIStudioAnalyzer(ctx context.Context, apiKey, modelName string) (*AIStud
 		return nil, fmt.Errorf("gemini api key cannot be empty")
 	}
 	if modelName == "" {
-		modelName = "gemini-2.5-flash"
+		modelName = "gemini-3.5-flash-lite"
 	}
 
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
