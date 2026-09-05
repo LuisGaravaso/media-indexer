@@ -18,8 +18,8 @@ func NewAIStudioEmbedder(ctx context.Context, apiKey, modelName string) (*AIStud
 	if apiKey == "" {
 		return nil, fmt.Errorf("gemini api key cannot be empty")
 	}
-	if modelName == "" {
-		modelName = "text-embedding-004"
+	if modelName == "" || modelName == "text-embedding-004" {
+		modelName = "gemini-embedding-001"
 	}
 
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
@@ -43,7 +43,12 @@ func (a *AIStudioEmbedder) EmbedText(ctx context.Context, text string) ([]float3
 	}
 
 	content := genai.NewContentFromText(text, genai.RoleUser)
-	resp, err := a.client.Models.EmbedContent(ctx, a.modelName, []*genai.Content{content}, nil)
+	dim := int32(768)
+	cfg := &genai.EmbedContentConfig{
+		OutputDimensionality: &dim,
+	}
+
+	resp, err := a.client.Models.EmbedContent(ctx, a.modelName, []*genai.Content{content}, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("gemini api embed content failed: %w", err)
 	}
