@@ -38,12 +38,12 @@ func main() {
 		defer dbPool.Close()
 	}
 
-	// 2. Initialize Media Analyzer & Text Embedder (Prioritize Google AI Studio with API Key, fallback to Vertex AI)
+	// 2. Initialize Media Analyzer & Text Embedder (Google AI Studio with GEMINI_API_KEY)
 	var mediaAnalyzer analyzer.MediaAnalyzer
 	var textEmbedder embeddings.Embedder
 
 	if cfg.GeminiAPIKey != "" {
-		log.Println("[AI Provider] Using Google AI Studio with GEMINI_API_KEY")
+		log.Println("[AI Provider] Initializing Google AI Studio provider with GEMINI_API_KEY")
 		aiStudioAnalyzer, err := analyzer.NewAIStudioAnalyzer(ctx, cfg.GeminiAPIKey, cfg.GeminiModel)
 		if err != nil {
 			log.Printf("[Warning] Google AI Studio analyzer initialization failed: %v", err)
@@ -59,22 +59,7 @@ func main() {
 			textEmbedder = aiStudioEmbedder
 		}
 	} else {
-		log.Printf("[AI Provider] GEMINI_API_KEY not set; using Google Cloud Vertex AI (Project: %s)", cfg.GCPProjectID)
-		vertexAnalyzer, err := analyzer.NewGeminiAnalyzer(ctx, cfg.GCPProjectID, "us-central1", cfg.GeminiModel)
-		if err != nil {
-			log.Printf("[Warning] Vertex AI Gemini analyzer initialization failed: %v", err)
-		} else {
-			mediaAnalyzer = vertexAnalyzer
-			defer func() { _ = vertexAnalyzer.Close() }()
-		}
-
-		vertexEmb, err := embeddings.NewVertexEmbedder(ctx, cfg.GCPProjectID, "us-central1", cfg.EmbeddingModel)
-		if err != nil {
-			log.Printf("[Warning] Vertex AI embedder initialization failed: %v", err)
-		} else {
-			textEmbedder = vertexEmb
-			defer func() { _ = vertexEmb.Close() }()
-		}
+		log.Println("[Warning] GEMINI_API_KEY is not set. Multimodal indexing and semantic search will remain disabled to prevent Vertex AI billing.")
 	}
 
 	// 3. Repositories and Services
