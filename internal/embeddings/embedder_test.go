@@ -57,3 +57,9 @@ func TestNewVertexEmbedder_Validation(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "project ID cannot be empty")
 }
+
+func TestNewAIStudioEmbedder_Validation(t *testing.T) {
+	_, err := NewAIStudioEmbedder(context.Background(), "", "text-embedding-004")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "gemini api key cannot be empty")
+}

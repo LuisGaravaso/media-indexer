@@ -38,19 +38,43 @@ func main() {
 		defer dbPool.Close()
 	}
 
-	// 2. Initialize Gemini Analyzer & Vertex Embedder
-	geminiAnalyzer, err := analyzer.NewGeminiAnalyzer(ctx, cfg.GCPProjectID, "us-central1", cfg.GeminiModel)
-	if err != nil {
-		log.Printf("[Warning] Gemini analyzer initialization failed: %v", err)
-	} else {
-		defer func() { _ = geminiAnalyzer.Close() }()
-	}
+	// 2. Initialize Media Analyzer & Text Embedder (Prioritize Google AI Studio with API Key, fallback to Vertex AI)
+	var mediaAnalyzer analyzer.MediaAnalyzer
+	var textEmbedder embeddings.Embedder
 
-	vertexEmbedder, err := embeddings.NewVertexEmbedder(ctx, cfg.GCPProjectID, "us-central1", cfg.EmbeddingModel)
-	if err != nil {
-		log.Printf("[Warning] Vertex embedder initialization failed: %v", err)
+	if cfg.GeminiAPIKey != "" {
+		log.Println("[AI Provider] Using Google AI Studio with GEMINI_API_KEY")
+		aiStudioAnalyzer, err := analyzer.NewAIStudioAnalyzer(ctx, cfg.GeminiAPIKey, cfg.GeminiModel)
+		if err != nil {
+			log.Printf("[Warning] Google AI Studio analyzer initialization failed: %v", err)
+		} else {
+			mediaAnalyzer = aiStudioAnalyzer
+			defer func() { _ = aiStudioAnalyzer.Close() }()
+		}
+
+		aiStudioEmbedder, err := embeddings.NewAIStudioEmbedder(ctx, cfg.GeminiAPIKey, cfg.EmbeddingModel)
+		if err != nil {
+			log.Printf("[Warning] Google AI Studio embedder initialization failed: %v", err)
+		} else {
+			textEmbedder = aiStudioEmbedder
+		}
 	} else {
-		defer func() { _ = vertexEmbedder.Close() }()
+		log.Printf("[AI Provider] GEMINI_API_KEY not set; using Google Cloud Vertex AI (Project: %s)", cfg.GCPProjectID)
+		vertexAnalyzer, err := analyzer.NewGeminiAnalyzer(ctx, cfg.GCPProjectID, "us-central1", cfg.GeminiModel)
+		if err != nil {
+			log.Printf("[Warning] Vertex AI Gemini analyzer initialization failed: %v", err)
+		} else {
+			mediaAnalyzer = vertexAnalyzer
+			defer func() { _ = vertexAnalyzer.Close() }()
+		}
+
+		vertexEmb, err := embeddings.NewVertexEmbedder(ctx, cfg.GCPProjectID, "us-central1", cfg.EmbeddingModel)
+		if err != nil {
+			log.Printf("[Warning] Vertex AI embedder initialization failed: %v", err)
+		} else {
+			textEmbedder = vertexEmb
+			defer func() { _ = vertexEmb.Close() }()
+		}
 	}
 
 	// 3. Repositories and Services
@@ -58,16 +82,16 @@ func main() {
 	var searchService search.Service
 	if dbPool != nil {
 		semanticsRepo = repository.NewPostgresSemanticsRepository(dbPool)
-		if vertexEmbedder != nil {
-			searchService, _ = search.NewSemanticSearchService(vertexEmbedder, semanticsRepo)
+		if textEmbedder != nil {
+			searchService, _ = search.NewSemanticSearchService(textEmbedder, semanticsRepo)
 		}
 	}
 
 	// 4. Indexing Pipeline & Worker Pool
 	var workerPool *events.WorkerPool
 	var subscriber events.Subscriber
-	if semanticsRepo != nil && geminiAnalyzer != nil && vertexEmbedder != nil {
-		indexPipeline, err := pipeline.NewMediaIndexingPipeline(cfg.StorageBucket, geminiAnalyzer, vertexEmbedder, semanticsRepo)
+	if semanticsRepo != nil && mediaAnalyzer != nil && textEmbedder != nil {
+		indexPipeline, err := pipeline.NewMediaIndexingPipeline(cfg.StorageBucket, mediaAnalyzer, textEmbedder, semanticsRepo)
 		if err == nil {
 			workerPool, _ = events.NewWorkerPool(cfg.WorkerConcurrency, cfg.WorkerConcurrency*3, indexPipeline)
 			if workerPool != nil {

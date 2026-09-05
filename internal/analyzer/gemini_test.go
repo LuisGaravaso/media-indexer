@@ -104,3 +104,24 @@ func TestVideoAnalysis_JSONUnmarshalling(t *testing.T) {
 	assert.Equal(t, 2.5, result.Scenes[0].EndTimeSeconds)
 	assert.Equal(t, "Let's go!", result.Scenes[1].SpeechTranscript)
 }
+
+func TestParseGCSURI(t *testing.T) {
+	bucket, obj, err := parseGCSURI("gs://my-bucket/path/to/media.jpg")
+	require.NoError(t, err)
+	assert.Equal(t, "my-bucket", bucket)
+	assert.Equal(t, "path/to/media.jpg", obj)
+
+	_, _, err = parseGCSURI("http://example.com/file.jpg")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid gcs uri scheme")
+
+	_, _, err = parseGCSURI("gs://bucket-only")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid gcs uri format")
+}
+
+func TestNewAIStudioAnalyzer_Validation(t *testing.T) {
+	_, err := NewAIStudioAnalyzer(context.Background(), "", "gemini-2.5-flash")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "gemini api key cannot be empty")
+}
