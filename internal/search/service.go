@@ -194,13 +194,13 @@ func (s *SemanticSearchService) Search(ctx context.Context, userID uuid.UUID, re
 	return finalResults, nil
 }
 
-// normalizeScore calibrates high-dimensional embedding cosine similarity (typically 0.15-0.65)
-// onto an intuitive 0.0 - 1.0 (0% - 100%) scale.
+// normalizeScore calibrates high-dimensional embedding cosine similarity (typically 0.55-0.82 for gemini-embedding-001)
+// onto an intuitive 0.0 - 1.0 (0% - 100%) scale, filtering out unrelated token noise.
 func normalizeScore(raw float64) float64 {
-	// Baseline random similarity floor: ~0.15
-	// Target high-confidence semantic ceiling: ~0.65
-	const floor = 0.15
-	const ceiling = 0.65
+	// Baseline random similarity floor for unrelated text: ~0.55
+	// Target high-confidence semantic ceiling: ~0.82
+	const floor = 0.55
+	const ceiling = 0.82
 
 	if raw <= floor {
 		return 0.0
