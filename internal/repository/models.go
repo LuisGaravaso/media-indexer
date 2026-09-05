@@ -11,6 +11,7 @@ import (
 type MediaSemanticsRecord struct {
 	MediaID          uuid.UUID       `json:"media_id"`
 	UserID           uuid.UUID       `json:"user_id"`
+	MediaType        string          `json:"media_type"`
 	Summary          string          `json:"summary"`
 	Tags             []string        `json:"tags"`
 	DetectedLocation string          `json:"detected_location"`

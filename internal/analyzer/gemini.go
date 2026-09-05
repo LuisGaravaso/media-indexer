@@ -107,6 +107,18 @@ func (g *GeminiAnalyzer) AnalyzeGCSMedia(ctx context.Context, gcsURI string, mim
 		return nil, fmt.Errorf("gcsURI cannot be empty")
 	}
 
+	if mimeType == "" {
+		if strings.ToLower(mediaType) == "image" {
+			mimeType = "image/jpeg"
+		} else if strings.ToLower(mediaType) == "video" {
+			mimeType = "video/mp4"
+		} else if strings.ToLower(mediaType) == "audio" {
+			mimeType = "audio/mpeg"
+		} else {
+			mimeType = "application/octet-stream"
+		}
+	}
+
 	model := g.client.GenerativeModel(g.modelName)
 	model.ResponseMIMEType = "application/json"
 	model.SetTemperature(0.2)

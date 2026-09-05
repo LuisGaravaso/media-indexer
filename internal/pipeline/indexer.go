@@ -68,6 +68,7 @@ func (p *MediaIndexingPipeline) ProcessMediaConfirmed(ctx context.Context, event
 	semanticsRecord := &repository.MediaSemanticsRecord{
 		MediaID:          event.MediaID,
 		UserID:           event.UserID,
+		MediaType:        event.MediaType,
 		Summary:          analysis.Summary,
 		Tags:             analysis.Tags,
 		DetectedLocation: analysis.DetectedLocation,
