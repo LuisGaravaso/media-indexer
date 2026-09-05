@@ -31,6 +31,7 @@ type Config struct {
 	StorageBucket      string
 
 	// AI & Models
+	GeminiAPIKey      string
 	GeminiModel       string
 	EmbeddingModel    string
 	WorkerConcurrency int
@@ -56,6 +57,7 @@ func Load() *Config {
 	pubsubSubscription := getEnv("PUBSUB_SUBSCRIPTION", "media-indexer-sub")
 	storageBucket := getEnv("STORAGE_BUCKET", "reeler-media-sandbox")
 
+	geminiAPIKey := getEnv("GEMINI_API_KEY", "")
 	geminiModel := getEnv("GEMINI_MODEL", "gemini-2.5-flash")
 	embeddingModel := getEnv("EMBEDDING_MODEL", "text-embedding-004")
 	workerConcurrency := getEnvAsInt("WORKER_CONCURRENCY", 5)
@@ -73,6 +75,7 @@ func Load() *Config {
 		GCPProjectID:       gcpProjectID,
 		PubSubSubscription: pubsubSubscription,
 		StorageBucket:      storageBucket,
+		GeminiAPIKey:       geminiAPIKey,
 		GeminiModel:        geminiModel,
 		EmbeddingModel:     embeddingModel,
 		WorkerConcurrency: workerConcurrency,
