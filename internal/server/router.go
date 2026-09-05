@@ -18,6 +18,7 @@ func SetupRouter(cfg *config.Config, db Pinger, searchSvc search.Service, valida
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(gin.Logger())
+	router.Use(middleware.CORS())
 
 	// Health probes
 	router.GET("/health", HealthHandler(db))
