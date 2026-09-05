@@ -78,15 +78,15 @@ hooks-install:
 	chmod +x .githooks/*
 	@echo "Git hooks configured successfully with .githooks/"
 
-## proxy-sandbox: Run local authenticated proxy to Cloud Run sandbox (default port 8080)
+## proxy-sandbox: Run local authenticated proxy to Cloud Run sandbox (default port 8081)
 proxy-sandbox:
-	@echo "Starting local proxy to reeler-sandbox media-indexer on http://localhost:8080..."
-	gcloud run services proxy media-indexer --project=reeler-sandbox --region=us-central1 --port=8080
+	@echo "Starting local proxy to reeler-sandbox media-indexer on http://localhost:8081..."
+	gcloud run services proxy media-indexer --project=reeler-sandbox --region=us-central1 --port=8081
 
-## proxy-prod: Run local authenticated proxy to Cloud Run prod (default port 8080)
+## proxy-prod: Run local authenticated proxy to Cloud Run prod (default port 8081)
 proxy-prod:
-	@echo "Starting local proxy to reeler-prod media-indexer on http://localhost:8080..."
-	gcloud run services proxy media-indexer --project=reeler-prod --region=us-central1 --port=8080
+	@echo "Starting local proxy to reeler-prod media-indexer on http://localhost:8081..."
+	gcloud run services proxy media-indexer --project=reeler-prod --region=us-central1 --port=8081
 
 ## proxy: Alias for proxy-sandbox
 proxy: proxy-sandbox
