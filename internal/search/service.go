@@ -27,6 +27,7 @@ type SceneMatch struct {
 	EndTimeSeconds   float64 `json:"end_time_seconds"`
 	Description      string  `json:"description"`
 	Similarity       float64 `json:"similarity"`
+	RawSimilarity    float64 `json:"raw_similarity,omitempty"`
 }
 
 // SemanticSearchResult represents a ranked media item matching the natural language search.
@@ -38,6 +39,7 @@ type SemanticSearchResult struct {
 	DetectedLocation string       `json:"detected_location,omitempty"`
 	DetectedSeason   string       `json:"detected_season,omitempty"`
 	Similarity       float64      `json:"similarity"`
+	RawSimilarity    float64      `json:"raw_similarity,omitempty"`
 	MatchingScenes   []SceneMatch `json:"matching_scenes,omitempty"`
 }
 
@@ -81,7 +83,8 @@ func (s *SemanticSearchService) Search(ctx context.Context, userID uuid.UUID, re
 		limit = 100
 	}
 
-	threshold := 0.20
+	// Default threshold to 0.0 (unbounded Top-K retrieval) unless specifically overridden
+	threshold := 0.0
 	if req.Threshold != nil {
 		threshold = *req.Threshold
 	}
@@ -106,6 +109,8 @@ func (s *SemanticSearchService) Search(ctx context.Context, userID uuid.UUID, re
 
 	resultsMap := make(map[uuid.UUID]*SemanticSearchResult)
 	for _, m := range mediaMatches {
+		rawSim := m.Similarity
+		normSim := normalizeScore(rawSim)
 		resultsMap[m.MediaID] = &SemanticSearchResult{
 			MediaID:          m.MediaID,
 			UserID:           m.UserID,
@@ -113,7 +118,8 @@ func (s *SemanticSearchService) Search(ctx context.Context, userID uuid.UUID, re
 			Tags:             m.Tags,
 			DetectedLocation: m.DetectedLocation,
 			DetectedSeason:   m.DetectedSeason,
-			Similarity:       m.Similarity,
+			Similarity:       normSim,
+			RawSimilarity:    rawSim,
 		}
 	}
 
@@ -125,11 +131,15 @@ func (s *SemanticSearchService) Search(ctx context.Context, userID uuid.UUID, re
 		}
 
 		for _, sm := range sceneMatches {
+			rawSceneSim := sm.Similarity
+			normSceneSim := normalizeScore(rawSceneSim)
+
 			res, exists := resultsMap[sm.MediaID]
 			if !exists {
 				// Fetch parent media summary if not already in result map
 				parentSem, err := s.repo.GetSemanticsByMediaID(ctx, userID, sm.MediaID)
 				if err == nil && parentSem != nil {
+					rawParentSim := sm.Similarity
 					res = &SemanticSearchResult{
 						MediaID:          parentSem.MediaID,
 						UserID:           parentSem.UserID,
@@ -137,15 +147,17 @@ func (s *SemanticSearchService) Search(ctx context.Context, userID uuid.UUID, re
 						Tags:             parentSem.Tags,
 						DetectedLocation: parentSem.DetectedLocation,
 						DetectedSeason:   parentSem.DetectedSeason,
-						Similarity:       sm.Similarity, // use highest scene similarity
+						Similarity:       normSceneSim,
+						RawSimilarity:    rawParentSim,
 					}
 					resultsMap[sm.MediaID] = res
 				}
 			}
 
 			if res != nil {
-				if sm.Similarity > res.Similarity {
-					res.Similarity = sm.Similarity
+				if normSceneSim > res.Similarity {
+					res.Similarity = normSceneSim
+					res.RawSimilarity = rawSceneSim
 				}
 
 				if sm.SceneIndex != nil && sm.StartTimeSeconds != nil && sm.EndTimeSeconds != nil && sm.SceneDescription != nil {
@@ -154,7 +166,8 @@ func (s *SemanticSearchService) Search(ctx context.Context, userID uuid.UUID, re
 						StartTimeSeconds: *sm.StartTimeSeconds,
 						EndTimeSeconds:   *sm.EndTimeSeconds,
 						Description:      *sm.SceneDescription,
-						Similarity:       sm.Similarity,
+						Similarity:       normSceneSim,
+						RawSimilarity:    rawSceneSim,
 					})
 				}
 			}
@@ -166,8 +179,11 @@ func (s *SemanticSearchService) Search(ctx context.Context, userID uuid.UUID, re
 		finalResults = append(finalResults, *res)
 	}
 
-	// Rank by descending similarity
+	// Rank by descending similarity (normalized first, then raw similarity)
 	sort.Slice(finalResults, func(i, j int) bool {
+		if finalResults[i].Similarity == finalResults[j].Similarity {
+			return finalResults[i].RawSimilarity > finalResults[j].RawSimilarity
+		}
 		return finalResults[i].Similarity > finalResults[j].Similarity
 	})
 
@@ -176,4 +192,23 @@ func (s *SemanticSearchService) Search(ctx context.Context, userID uuid.UUID, re
 	}
 
 	return finalResults, nil
+}
+
+// normalizeScore calibrates high-dimensional embedding cosine similarity (typically 0.15-0.65)
+// onto an intuitive 0.0 - 1.0 (0% - 100%) scale.
+func normalizeScore(raw float64) float64 {
+	// Baseline random similarity floor: ~0.15
+	// Target high-confidence semantic ceiling: ~0.65
+	const floor = 0.15
+	const ceiling = 0.65
+
+	if raw <= floor {
+		return 0.0
+	}
+	if raw >= ceiling {
+		return 1.0
+	}
+
+	scaled := (raw - floor) / (ceiling - floor)
+	return float64(int(scaled*10000)) / 10000.0 // Round to 4 decimal places
 }
