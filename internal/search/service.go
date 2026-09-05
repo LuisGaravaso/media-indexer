@@ -81,7 +81,7 @@ func (s *SemanticSearchService) Search(ctx context.Context, userID uuid.UUID, re
 		limit = 100
 	}
 
-	threshold := 0.3
+	threshold := 0.20
 	if req.Threshold != nil {
 		threshold = *req.Threshold
 	}
