@@ -45,10 +45,11 @@ func (r *PostgresSemanticsRepository) SaveMediaIndex(ctx context.Context, semant
 
 	upsertSemanticsSQL := `
 		INSERT INTO media_semantics (
-			media_id, user_id, summary, tags, detected_location, detected_season,
+			media_id, user_id, media_type, summary, tags, detected_location, detected_season,
 			visual_objects, embedding, indexed_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
 		ON CONFLICT (media_id) DO UPDATE SET
+			media_type = EXCLUDED.media_type,
 			summary = EXCLUDED.summary,
 			tags = EXCLUDED.tags,
 			detected_location = EXCLUDED.detected_location,
@@ -62,6 +63,7 @@ func (r *PostgresSemanticsRepository) SaveMediaIndex(ctx context.Context, semant
 	_, err = tx.Exec(ctx, upsertSemanticsSQL,
 		semantics.MediaID,
 		semantics.UserID,
+		semantics.MediaType,
 		semantics.Summary,
 		semantics.Tags,
 		semantics.DetectedLocation,
@@ -126,7 +128,7 @@ func (r *PostgresSemanticsRepository) SaveMediaIndex(ctx context.Context, semant
 // GetSemanticsByMediaID fetches the semantic summary record for a specific media.
 func (r *PostgresSemanticsRepository) GetSemanticsByMediaID(ctx context.Context, userID, mediaID uuid.UUID) (*MediaSemanticsRecord, error) {
 	query := `
-		SELECT media_id, user_id, summary, tags, detected_location, detected_season,
+		SELECT media_id, user_id, media_type, summary, tags, detected_location, detected_season,
 		       visual_objects, embedding, indexed_at, created_at, updated_at
 		FROM media_semantics
 		WHERE user_id = $1 AND media_id = $2
@@ -136,6 +138,7 @@ func (r *PostgresSemanticsRepository) GetSemanticsByMediaID(ctx context.Context,
 	err := r.pool.QueryRow(ctx, query, userID, mediaID).Scan(
 		&rec.MediaID,
 		&rec.UserID,
+		&rec.MediaType,
 		&rec.Summary,
 		&rec.Tags,
 		&rec.DetectedLocation,
@@ -205,7 +208,7 @@ func (r *PostgresSemanticsRepository) SearchSimilarMedia(ctx context.Context, us
 	}
 
 	query := `
-		SELECT media_id, user_id, summary, tags, detected_location, detected_season,
+		SELECT media_id, user_id, media_type, summary, tags, detected_location, detected_season,
 		       1 - (embedding <=> $2) AS similarity
 		FROM media_semantics
 		WHERE user_id = $1 AND (1 - (embedding <=> $2)) >= $3
@@ -225,6 +228,7 @@ func (r *PostgresSemanticsRepository) SearchSimilarMedia(ctx context.Context, us
 		err := rows.Scan(
 			&item.MediaID,
 			&item.UserID,
+			&item.MediaType,
 			&item.Summary,
 			&item.Tags,
 			&item.DetectedLocation,
