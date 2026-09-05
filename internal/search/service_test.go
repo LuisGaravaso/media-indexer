@@ -111,7 +111,7 @@ func TestSemanticSearchService_Search(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, results, 2)
 	assert.Equal(t, mediaID2, results[0].MediaID) // Higher similarity ranked first
-	assert.Equal(t, 1.0, results[0].Similarity)   // Calibrated ceiling (>= 0.65 maps to 1.0)
+	assert.Equal(t, 0.94, results[0].Similarity)   // Raw cosine similarity rounded
 	assert.Equal(t, 0.94, results[0].RawSimilarity)
 	assert.Len(t, results[0].MatchingScenes, 1)
 	assert.Equal(t, "Surfer catching barrel wave", results[0].MatchingScenes[0].Description)
