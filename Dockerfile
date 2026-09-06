@@ -21,16 +21,20 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -o /app/server \
     ./cmd/server/main.go
 
-# Stage 2: Minimal runtime
-FROM gcr.io/distroless/static-debian12:nonroot
+# Stage 2: Lightweight Alpine runtime with ffmpeg
+FROM alpine:3.20
 
-WORKDIR /
+RUN apk add --no-cache ca-certificates ffmpeg tzdata
 
-COPY --from=builder /app/server /server
+WORKDIR /app
 
+COPY --from=builder /app/server /app/server
+
+# Create nonroot user for security
+RUN adduser -D -u 10001 nonroot
 USER nonroot:nonroot
 
 ENV PORT=8080
 EXPOSE 8080
 
-ENTRYPOINT ["/server"]
+ENTRYPOINT ["/app/server"]

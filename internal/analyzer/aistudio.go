@@ -103,13 +103,20 @@ func (a *AIStudioAnalyzer) AnalyzeGCSMedia(ctx context.Context, gcsURI string, m
 	}
 
 	var prompt string
+	payloadBytes := mediaBytes
 	if strings.ToLower(mediaType) == "image" || strings.HasPrefix(strings.ToLower(mimeType), "image/") {
 		prompt = BuildImagePrompt()
 	} else {
 		prompt = BuildVideoPrompt()
+		// Optimize video resolution and framerate before submitting to Gemini
+		optimizedBytes, err := DownscaleVideo(ctx, mediaBytes, 360)
+		if err == nil && len(optimizedBytes) > 0 {
+			payloadBytes = optimizedBytes
+			mimeType = "video/mp4"
+		}
 	}
 
-	filePart := genai.NewPartFromBytes(mediaBytes, mimeType)
+	filePart := genai.NewPartFromBytes(payloadBytes, mimeType)
 	textPart := genai.NewPartFromText(prompt)
 	content := genai.NewContentFromParts([]*genai.Part{filePart, textPart}, genai.RoleUser)
 
