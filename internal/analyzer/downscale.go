@@ -51,13 +51,13 @@ func DownscaleVideoReader(ctx context.Context, r io.Reader, maxDimension int) ([
 	processCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()
 
-	// Fast keyframe & 1 FPS downsampling, ultrafast preset, CRF 34, no audio
+	// Fast 1 FPS downsampling, ultrafast preset, CRF 34, multi-threaded, no audio
 	scaleFilter := fmt.Sprintf("scale='min(%d,iw)':-2", maxDimension)
 	cmd := exec.CommandContext(processCtx, ffmpegPath,
 		"-y",
 		"-i", inputFile,
 		"-vf", scaleFilter,
-		"-r", "1", // 1 FPS is ideal for scene narrative & dramatically faster encoding
+		"-r", "1", // 1 FPS is ideal for Gemini video understanding
 		"-c:v", "libx264",
 		"-crf", "34",
 		"-preset", "ultrafast",
