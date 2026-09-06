@@ -103,3 +103,5 @@ jobs:
             --min-instances=0
             --max-instances=2
             --concurrency=80
+            --cpu=2
+            --memory=2Gi
