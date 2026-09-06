@@ -87,8 +87,13 @@ func BuildVideoPrompt() string {
 
 Rules:
 - Output ONLY the JSON object. Do not include markdown code block formatting or backticks.
-- Break down video into temporal scene segments covering the full duration.
-- Each scene must have accurate start/end timestamps, visual description, mood, and actions.
+- Break down video into temporal scene segments covering meaningful, informative visual content.
+- EXCLUDE and DO NOT create scene entries for useless or dead footage:
+  * Static background shots with no movement, subjects, or narrative progression.
+  * Extremely shaky, accidental (e.g. pocket/floor recordings), or blurred/unfocused camera motions.
+  * Blank, black, or transition screens.
+  * Generic intros, outros, or filler segments without meaningful context.
+- Each retained scene must have accurate start/end timestamps, visual description, mood, and actions.
 - Provide descriptive, searchable tags covering global theme, mood, objects, and setting.`
 }
 
