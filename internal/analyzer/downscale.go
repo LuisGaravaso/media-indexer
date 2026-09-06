@@ -42,20 +42,21 @@ func DownscaleVideo(ctx context.Context, inputBytes []byte, maxDimension int) ([
 		return inputBytes, nil
 	}
 
-	// Timeout context for downscaling process (max 45 seconds)
-	processCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
+	// Timeout context for downscaling process (max 90 seconds)
+	processCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
 
-	// Scale video to max 360p, 2 FPS sampling, H.264 CRF 32, veryfast preset, no audio
+	// Scale video to max 360p, 1 FPS sampling, H.264 CRF 34, ultrafast preset, 1 thread for low memory & CPU safety
 	scaleFilter := fmt.Sprintf("scale='min(%d,iw)':-2", maxDimension)
 	cmd := exec.CommandContext(processCtx, ffmpegPath,
 		"-y",
+		"-threads", "1",
 		"-i", inputFile,
 		"-vf", scaleFilter,
-		"-r", "2", // 2 FPS is plenty for scene detection while keeping bytes minimal
+		"-r", "1", // 1 FPS is ideal for Gemini video understanding (Gemini internally samples 1 FPS)
 		"-c:v", "libx264",
-		"-crf", "32",
-		"-preset", "veryfast",
+		"-crf", "34",
+		"-preset", "ultrafast",
 		"-an", // Strip audio track to save tokens/bandwidth
 		"-movflags", "+faststart",
 		outputFile,
