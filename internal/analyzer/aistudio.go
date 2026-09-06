@@ -97,23 +97,24 @@ func (a *AIStudioAnalyzer) AnalyzeGCSMedia(ctx context.Context, gcsURI string, m
 	}
 	defer func() { _ = rc.Close() }()
 
-	mediaBytes, err := io.ReadAll(rc)
-	if err != nil {
-		return nil, fmt.Errorf("failed reading media bytes from gcs: %w", err)
-	}
-
 	var prompt string
-	payloadBytes := mediaBytes
+	var payloadBytes []byte
 	if strings.ToLower(mediaType) == "image" || strings.HasPrefix(strings.ToLower(mimeType), "image/") {
 		prompt = BuildImagePrompt()
+		mediaBytes, err := io.ReadAll(rc)
+		if err != nil {
+			return nil, fmt.Errorf("failed reading image bytes from gcs: %w", err)
+		}
+		payloadBytes = mediaBytes
 	} else {
 		prompt = BuildVideoPrompt()
-		// Optimize video resolution and framerate before submitting to Gemini
-		optimizedBytes, err := DownscaleVideo(ctx, mediaBytes, 360)
-		if err == nil && len(optimizedBytes) > 0 {
-			payloadBytes = optimizedBytes
-			mimeType = "video/mp4"
+		// Stream video reader directly through ffmpeg downscaling to 360p @ 1 FPS
+		optimizedBytes, err := DownscaleVideoReader(ctx, rc, 360)
+		if err != nil {
+			return nil, fmt.Errorf("failed optimizing video stream: %w", err)
 		}
+		payloadBytes = optimizedBytes
+		mimeType = "video/mp4"
 	}
 
 	filePart := genai.NewPartFromBytes(payloadBytes, mimeType)

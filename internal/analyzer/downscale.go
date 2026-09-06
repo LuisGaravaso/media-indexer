@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -11,53 +12,57 @@ import (
 	"time"
 )
 
-// DownscaleVideo pre-processes video bytes to a lightweight 360p resolution,
-// reduced framerate (e.g. 2 fps), and low bitrate for optimal token economy and low memory usage.
-// If ffmpeg is not installed or fails, it gracefully returns the original bytes.
-func DownscaleVideo(ctx context.Context, inputBytes []byte, maxDimension int) ([]byte, error) {
-	if len(inputBytes) == 0 {
-		return nil, fmt.Errorf("input video bytes cannot be empty")
+// DownscaleVideoReader streams video bytes from an io.Reader to a temp file, then runs
+// optimized ffmpeg transcoding to 360p @ 1 FPS using ultrafast settings to minimize memory and time.
+func DownscaleVideoReader(ctx context.Context, r io.Reader, maxDimension int) ([]byte, error) {
+	if r == nil {
+		return nil, fmt.Errorf("input video reader cannot be nil")
 	}
 	if maxDimension <= 0 {
 		maxDimension = 360
 	}
 
-	// Check if ffmpeg binary exists in PATH
 	ffmpegPath, err := exec.LookPath("ffmpeg")
 	if err != nil {
-		log.Printf("[VideoOptimizer] ffmpeg not found in PATH; falling back to original video payload (%d bytes)", len(inputBytes))
-		return inputBytes, nil
+		log.Printf("[VideoOptimizer] ffmpeg not found in PATH; reading raw stream")
+		return io.ReadAll(r)
 	}
 
 	tempDir, err := os.MkdirTemp("", "reeler-video-downscale-*")
 	if err != nil {
-		return inputBytes, nil
+		return io.ReadAll(r)
 	}
 	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	inputFile := filepath.Join(tempDir, "input.mp4")
 	outputFile := filepath.Join(tempDir, "downscaled.mp4")
 
-	if err := os.WriteFile(inputFile, inputBytes, 0600); err != nil {
-		return inputBytes, nil
+	f, err := os.Create(inputFile)
+	if err != nil {
+		return io.ReadAll(r)
 	}
 
-	// Timeout context for downscaling process (max 90 seconds)
-	processCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	written, err := io.Copy(f, r)
+	_ = f.Close()
+	if err != nil || written == 0 {
+		return nil, fmt.Errorf("failed writing input video stream: %w", err)
+	}
+
+	processCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()
 
-	// Scale video to max 360p, 1 FPS sampling, H.264 CRF 34, ultrafast preset, 1 thread for low memory & CPU safety
+	// Fast 1 FPS downsampling, ultrafast preset, CRF 34, multi-threaded, no audio
 	scaleFilter := fmt.Sprintf("scale='min(%d,iw)':-2", maxDimension)
 	cmd := exec.CommandContext(processCtx, ffmpegPath,
 		"-y",
-		"-threads", "1",
 		"-i", inputFile,
 		"-vf", scaleFilter,
-		"-r", "1", // 1 FPS is ideal for Gemini video understanding (Gemini internally samples 1 FPS)
+		"-r", "1", // 1 FPS is ideal for Gemini video understanding
 		"-c:v", "libx264",
 		"-crf", "34",
 		"-preset", "ultrafast",
-		"-an", // Strip audio track to save tokens/bandwidth
+		"-threads", "0",
+		"-an",
 		"-movflags", "+faststart",
 		outputFile,
 	)
@@ -66,19 +71,27 @@ func DownscaleVideo(ctx context.Context, inputBytes []byte, maxDimension int) ([
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		log.Printf("[VideoOptimizer] ffmpeg downscale failed: %v (stderr: %s); using raw bytes", err, stderr.String())
-		return inputBytes, nil
+		log.Printf("[VideoOptimizer] ffmpeg downscale failed: %v (stderr: %s); falling back to raw file", err, stderr.String())
+		return os.ReadFile(inputFile)
 	}
 
 	downscaledBytes, err := os.ReadFile(outputFile)
 	if err != nil || len(downscaledBytes) == 0 {
-		log.Printf("[VideoOptimizer] failed reading downscaled file; using raw bytes")
-		return inputBytes, nil
+		log.Printf("[VideoOptimizer] failed reading downscaled file; falling back to raw file")
+		return os.ReadFile(inputFile)
 	}
 
-	reductionPct := 100.0 - (float64(len(downscaledBytes)) / float64(len(inputBytes)) * 100.0)
+	reductionPct := 100.0 - (float64(len(downscaledBytes)) / float64(written) * 100.0)
 	log.Printf("[VideoOptimizer] Successfully downscaled video from %d KB to %d KB (%.1f%% reduction)",
-		len(inputBytes)/1024, len(downscaledBytes)/1024, reductionPct)
+		written/1024, len(downscaledBytes)/1024, reductionPct)
 
 	return downscaledBytes, nil
+}
+
+// DownscaleVideo pre-processes video bytes to a lightweight 360p resolution using DownscaleVideoReader.
+func DownscaleVideo(ctx context.Context, inputBytes []byte, maxDimension int) ([]byte, error) {
+	if len(inputBytes) == 0 {
+		return nil, fmt.Errorf("input video bytes cannot be empty")
+	}
+	return DownscaleVideoReader(ctx, bytes.NewReader(inputBytes), maxDimension)
 }
